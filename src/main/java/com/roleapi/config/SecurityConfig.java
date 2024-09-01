@@ -6,28 +6,42 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+import com.roleapi.authenticate.JwtRequestFilter;
 
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
+	private final JwtRequestFilter jwtRequestFilter;
 	@SuppressWarnings("unused")
 	private final UserDetailsService userDetailsService;
 
-	public SecurityConfig(UserDetailsService userDetailsService) {
+	public SecurityConfig(JwtRequestFilter jwtRequestFilter, UserDetailsService userDetailsService) {
+		this.jwtRequestFilter = jwtRequestFilter;
 		this.userDetailsService = userDetailsService;
 	}
 
 	@Bean
-	public PasswordEncoder passwordEncoder() {
-		return new BCryptPasswordEncoder();
+	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+		http.csrf(csrf -> csrf.disable())
+				.authorizeHttpRequests(authz -> authz.requestMatchers("/api/auth/login", "api/auth/register")
+						.permitAll().requestMatchers("/api/admin/**").hasRole("ADMIN") // Restrict access to ADMIN
+						.requestMatchers("/api/od/**").hasRole("OD") // Restrict access to MODERATOR
+						.requestMatchers("/api/cd/**").hasRole("CD") // Restrict access to USER
+						.anyRequest().authenticated() // All other requests require authentication
+				).sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+				.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
+
+		return http.build();
 	}
 
 	@Bean
@@ -37,16 +51,8 @@ public class SecurityConfig {
 	}
 
 	@Bean
-	public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-		http.csrf(AbstractHttpConfigurer::disable)
-				.authorizeHttpRequests(auth -> auth.requestMatchers("/api/admin/**").hasRole("ADMIN")
-						.requestMatchers("/api/manager/**").hasRole("OD").requestMatchers("/api/user/**").hasRole("CD")
-						.requestMatchers("/api/auth/**").permitAll().anyRequest().authenticated())
-				.httpBasic(httpBasicConfigurer -> {
-					// Additional configurations can go here if necessary
-				});
-
-		return http.build();
+	public PasswordEncoder passwordEncoder() {
+		return new BCryptPasswordEncoder();
 	}
 
 	@Bean
@@ -59,5 +65,4 @@ public class SecurityConfig {
 			}
 		};
 	}
-
 }

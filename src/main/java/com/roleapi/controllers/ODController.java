@@ -6,12 +6,12 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/OD")
-public class ODController {
+@RequestMapping("/api/od")
+public class OdController {
 
 	@GetMapping("/dashboard")
-    public ResponseEntity<String> ODDashboard() {
-        return ResponseEntity.ok("Welcome to OD Dashboard");
+    public ResponseEntity<String> getOdDashboard() {
+        return ResponseEntity.ok("Welcome to the OD Dashboard");
     }
 	
 }

@@ -2,41 +2,71 @@ package com.roleapi.controllers;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.roleapi.entity.User;
-import com.roleapi.repo.UserRepo;
+import com.roleapi.authenticate.JwtUtil;
+import com.roleapi.entities.User;
+import com.roleapi.payloads.AuthenticationRequest;
+import com.roleapi.payloads.AuthenticationResponse;
+import com.roleapi.services.UserService;
 
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
 
 	@Autowired
-	private UserRepo userRepo;
+	private AuthenticationManager authenticationManager;
+
+	@Autowired
+	private JwtUtil jwtUtil;
 
 	@Autowired
 	private PasswordEncoder passwordEncoder;
 
-	@PostMapping("/register")
-	public ResponseEntity<String> register(@RequestBody User user) {
-		user.setPassword(passwordEncoder.encode(user.getPassword()));
-		userRepo.save(user);
-		return ResponseEntity.ok("User registered successfully");
-	}
+	@Autowired
+	private UserDetailsService userDetailsService;
+
+	@Autowired
+	private UserService userService;
 
 	@PostMapping("/login")
-	public ResponseEntity<User> login(@RequestBody User user) {
-		User foundUser = userRepo.findByEmail(user.getEmail())
-				.orElseThrow(() -> new RuntimeException("User not found"));
+	public ResponseEntity<?> createAuthenticationToken(@RequestBody AuthenticationRequest authRequest)
+			throws Exception {
+		this.authenticate(authRequest.getEmail(), authRequest.getPassword());
 
-		if (passwordEncoder.matches(user.getPassword(), foundUser.getPassword())) {
-			return ResponseEntity.ok(foundUser);
-		} else {
-			return ResponseEntity.status(401).body(null);
+		UserDetails userDetails = userDetailsService.loadUserByUsername(authRequest.getEmail());
+
+		String jwt = jwtUtil.generateToken(userDetails);
+
+		AuthenticationResponse response = new AuthenticationResponse();
+		response.setJwt(jwt);
+
+		return ResponseEntity.ok(response);
+	}
+
+	private void authenticate(String email, String password) throws Exception {
+		UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken = new UsernamePasswordAuthenticationToken(
+				email, password);
+		try {
+			this.authenticationManager.authenticate(usernamePasswordAuthenticationToken);
+		} catch (BadCredentialsException e) {
+			System.out.println("Invalid Details !!");
 		}
+	}
+
+	@PostMapping("/register")
+	public ResponseEntity<?> registerUser(@RequestBody User user) {
+		user.setPassword(passwordEncoder.encode(user.getPassword()));
+		User savedUser = userService.save(user);
+		return ResponseEntity.ok(savedUser);
 	}
 }
